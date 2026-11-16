@@ -323,6 +323,32 @@ main { flex: 1; overflow: auto; min-height: 0; }
 .stat .k { color: var(--muted); font-size: 13px; }
 .stat .v { font-family: var(--font-display); font-size: 22px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
 
+/* ---------- expenses / profit ---------- */
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 20px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+.chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pos-num { color: var(--ok); }
+.neg-num { color: var(--bad); }
+.ledger { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+.ledger td { padding: 7px 4px; border-bottom: 1px dashed var(--line); }
+.ledger td:last-child { text-align: left; white-space: nowrap; }
+.ledger .sub td { color: var(--muted); font-size: 14px; padding-inline-start: 22px; }
+.ledger .subtotal td { font-weight: 700; border-bottom: 2px solid var(--line); background: var(--surface-2); }
+.ledger .grand td { font-family: var(--font-display); font-size: 22px; font-weight: 800; border-bottom: 0; padding-top: 12px; }
+.warn-box { margin-top: 12px; background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+.table tfoot th { background: var(--surface-2); color: var(--text); font-size: 15px; }
+
 /* ---------- returns ---------- */
 .result-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .sale-head { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 4px 0 14px; padding: 12px; background: var(--surface-2); border-radius: 10px; }
@@ -521,6 +547,8 @@ tr.hl { background: var(--warn-soft); }
       <button class="tab admin-only" data-view="products">المنتجات</button>
       <button class="tab admin-only" data-view="users">المستخدمين</button>
       <button class="tab admin-only" data-view="sales">المبيعات والتقارير</button>
+      <button class="tab admin-only" data-view="expenses">المصروفات</button>
+      <button class="tab admin-only" data-view="profit">الأرباح</button>
       <button class="tab admin-only" data-view="store">الإعدادات</button>
     </nav>
     <div class="userbox">
@@ -591,7 +619,7 @@ tr.hl { background: var(--warn-soft); }
         </div>
         <div class="tbl">
           <table class="table">
-            <thead><tr><th></th><th>اسم المنتج</th><th>كود الباركود / QR</th><th>السعر</th><th>المخزون</th><th></th></tr></thead>
+            <thead><tr><th></th><th>اسم المنتج</th><th>كود الباركود / QR</th><th>سعر البيع</th><th>سعر الشراء</th><th>المكسب في القطعة</th><th>المخزون</th><th></th></tr></thead>
             <tbody id="prod-body"></tbody>
           </table>
         </div>
@@ -651,6 +679,73 @@ tr.hl { background: var(--warn-soft); }
       </div>
     </section>
 
+    <!-- ===== المصروفات ===== -->
+    <section id="view-expenses" class="view">
+      <div class="panel">
+        <div class="toolbar">
+          <h2 class="grow">مصروفات ثابتة كل شهر <span class="muted small">(إيجار، مرتبات، اشتراكات)</span></h2>
+          <button id="add-fixed" class="btn primary">+ مصروف شهري</button>
+        </div>
+        <p class="muted small" style="margin-top:0">بتدخل المبلغ الشهري مرة واحدة، والسيستم بيوزعه على أيام الشهر لوحده. يعني إيجار 3000 في شهر 30 يوم = 100 في اليوم = 700 في الأسبوع.</p>
+        <div class="tbl">
+          <table class="table">
+            <thead><tr><th>المصروف</th><th>في الشهر</th><th>في الأسبوع تقريباً</th><th>من تاريخ</th><th>الحالة</th><th></th></tr></thead>
+            <tbody id="fixed-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <form id="exp-filter" class="toolbar">
+          <h2 class="grow">مصروفات متغيرة <span class="muted small">(كهرباء، مياه، صيانة، نقل)</span></h2>
+          <label>من <input id="exp-from" type="date"></label>
+          <label>إلى <input id="exp-to" type="date"></label>
+          <button class="btn ghost">عرض</button>
+          <button type="button" id="add-expense" class="btn primary">+ مصروف جديد</button>
+        </form>
+        <div class="tbl">
+          <table class="table">
+            <thead><tr><th>التاريخ</th><th>النوع</th><th>الوصف</th><th>المبلغ</th><th>سجّله</th><th></th></tr></thead>
+            <tbody id="exp-body"></tbody>
+            <tfoot><tr><th colspan="3">الإجمالي</th><th id="exp-total">0.00</th><th colspan="2"></th></tr></tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== الأرباح ===== -->
+    <section id="view-profit" class="view">
+      <div class="panel">
+        <div class="toolbar">
+          <h2 class="grow">تقرير الأرباح</h2>
+          <div class="chips" id="profit-presets">
+            <button class="chip" data-preset="this-week">الأسبوع ده</button>
+            <button class="chip" data-preset="last-week">الأسبوع اللي فات</button>
+            <button class="chip" data-preset="this-month">الشهر ده</button>
+            <button class="chip" data-preset="last-month">الشهر اللي فات</button>
+          </div>
+        </div>
+        <form id="profit-filter" class="toolbar">
+          <label>من <input id="profit-from" type="date"></label>
+          <label>إلى <input id="profit-to" type="date"></label>
+          <button class="btn ghost">عرض</button>
+          <span class="grow"></span>
+          <button type="button" id="profit-print" class="btn ghost">إيصال التقرير</button>
+        </form>
+        <div id="profit-cards" class="cards"></div>
+        <div id="profit-warning"></div>
+      </div>
+      <div class="panel narrow" id="profit-ledger"></div>
+      <div class="panel">
+        <h3 id="profit-breakdown-title" style="margin-bottom:8px">التفاصيل</h3>
+        <div class="tbl">
+          <table class="table">
+            <thead><tr><th id="profit-period-col">اليوم</th><th>المبيعات</th><th>المرتجعات</th><th>تكلفة البضاعة</th><th>المصروفات</th><th>الربح</th></tr></thead>
+            <tbody id="profit-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== الإعدادات ===== -->
     <section id="view-store" class="view">
       <div class="panel narrow">
@@ -687,7 +782,7 @@ tr.hl { background: var(--warn-soft); }
 /* =====================================================================
    خادم وهمي داخل الصفحة (بدل server.py) — البيانات على جهاز الزائر فقط
    ===================================================================== */
-const STORE_KEY = 'pos-demo-db-v1';
+const STORE_KEY = 'pos-demo-db-v2';
 const SESSION_KEY = 'pos-demo-session-v1';
 const ONLINE_MIN = 3;
 
@@ -709,7 +804,7 @@ function seedDB() {
   const db = {
     seq: {},
     settings: { store_name: 'سوبر ماركت النور', store_address: 'شارع التحرير، الدقي', store_phone: '0100 000 0000', receipt_footer: 'شكراً لزيارتكم — الاستبدال خلال 14 يوم بالفاتورة', currency: 'ج.م' },
-    users: [], sessions: [], products: [], sales: [], sale_items: [], returns: [],
+    users: [], sessions: [], products: [], sales: [], sale_items: [], returns: [], expenses: [], fixed_expenses: [],
   };
   const id = t => (db.seq[t] = (db.seq[t] || 0) + 1);
   const addUser = (username, full_name, role, active = 1, last_login = null) =>
@@ -718,47 +813,78 @@ function seedDB() {
   addUser('cashier', 'سارة أحمد', 'cashier', 1, ago(50));
   addUser('omar', 'عمر خالد', 'cashier', 1, ago(60 * 26));
 
+  //  الاسم، سعر البيع، سعر الشراء، المخزون، الكود
   const P = [
-    ['مياه معدنية 600 مل', 7, 120, '6221031490013', '💧', '#dcecfb'],
-    ['بيبسي كانز 330 مل', 15, 64, '6223001360117', '🥤', '#fbe1e1'],
-    ['شوكولاتة بالبندق', 20, 40, '6224000818201', '🍫', '#f1e4d8'],
-    ['عصير مانجو 1 لتر', 32, 18, '6221024130329', '🧃', '#fdf0cf'],
-    ['بسكويت شاي', 8, 90, '6223000510144', '🍪', '#f6e8d2'],
-    ['لبن كامل الدسم 1 لتر', 38, 24, '6221007003415', '🥛', '#eef2f7'],
-    ['عيش توست', 30, 4, '6223010220018', '🍞', '#f8ead3'],
-    ['نسكافيه 3 في 1', 5, 150, '6221038005529', '☕', '#eadfd6'],
-    ['شيبسي ملح', 10, 75, '6224000220431', '🍟', '#fdf3c8'],
-    ['جبنة رومي 250 جم', 75, 12, '6221008106207', '🧀', '#fdf1c9'],
-    ['أرز مصري 1 كجم', 35, 3, '6223004700125', '🍚', '#eef1ee'],
-    ['صابون يد', 18, 30, '6221155038814', '🧼', '#e3f1f6'],
+    ['مياه معدنية 600 مل', 7, 5, 120, '6221031490013', '💧', '#dcecfb'],
+    ['بيبسي كانز 330 مل', 15, 11.5, 64, '6223001360117', '🥤', '#fbe1e1'],
+    ['شوكولاتة بالبندق', 20, 15, 40, '6224000818201', '🍫', '#f1e4d8'],
+    ['عصير مانجو 1 لتر', 32, 25, 18, '6221024130329', '🧃', '#fdf0cf'],
+    ['بسكويت شاي', 8, 6, 90, '6223000510144', '🍪', '#f6e8d2'],
+    ['لبن كامل الدسم 1 لتر', 38, 32, 24, '6221007003415', '🥛', '#eef2f7'],
+    ['عيش توست', 30, 24, 4, '6223010220018', '🍞', '#f8ead3'],
+    ['نسكافيه 3 في 1', 5, 3.75, 150, '6221038005529', '☕', '#eadfd6'],
+    ['شيبسي ملح', 10, 7.5, 75, '6224000220431', '🍟', '#fdf3c8'],
+    ['جبنة رومي 250 جم', 75, 60, 12, '6221008106207', '🧀', '#fdf1c9'],
+    ['أرز مصري 1 كجم', 35, 29, 3, '6223004700125', '🍚', '#eef1ee'],
+    ['صابون يد', 18, 13, 30, '6221155038814', '🧼', '#e3f1f6'],
   ];
-  for (const [name, price, stock, barcode, emoji, bg] of P)
-    db.products.push({ id: id('products'), name, price, stock, barcode, image: emojiImg(emoji, bg), active: 1, created_at: ago(60 * 24 * 10) });
+  for (const [name, price, cost, stock, barcode, emoji, bg] of P)
+    db.products.push({ id: id('products'), name, price, cost, stock, barcode, image: emojiImg(emoji, bg), active: 1, created_at: ago(60 * 24 * 60) });
 
-  const sale = (user_id, lines, paid, minAgo) => {
+  const sale = (user_id, lines, paid, created_at) => {
     const sid = id('sales');
     let total = 0;
     for (const [pid, qty] of lines) {
       const p = db.products.find(x => x.id === pid);
-      db.sale_items.push({ id: id('sale_items'), sale_id: sid, product_id: pid, name: p.name, barcode: p.barcode, price: p.price, qty, returned_qty: 0 });
+      db.sale_items.push({ id: id('sale_items'), sale_id: sid, product_id: pid, name: p.name, barcode: p.barcode, price: p.price, cost: p.cost, qty, returned_qty: 0 });
       total += r2(p.price * qty);
     }
     total = r2(total);
-    db.sales.push({ id: sid, user_id, total, paid: paid ?? total, change_due: r2((paid ?? total) - total), created_at: ago(minAgo) });
+    db.sales.push({ id: sid, user_id, total, paid: paid ?? total, change_due: r2((paid ?? total) - total), created_at });
     return sid;
   };
-  sale(2, [[1, 2], [5, 3]], 50, 190);
-  sale(3, [[6, 1], [7, 1], [10, 1]], 150, 150);
-  const s3 = sale(2, [[2, 4], [9, 2]], 100, 80);
-  sale(2, [[8, 6], [4, 1]], null, 35);
-  sale(1, [[11, 2], [12, 1]], 100, 12);
+
+  // مبيعات الأيام اللي فاتت (أرقام ثابتة عشان كل زائر يشوف نفس الشكل)
+  let seedN = 7;
+  const rnd = n => { seedN = (seedN * 9301 + 49297) % 233280; return Math.floor((seedN / 233280) * n); };
+  for (let off = 45; off >= 1; off--) {
+    const day = new Date(); day.setDate(day.getDate() - off);
+    const count = 17 + rnd(9);
+    const times = Array.from({ length: count }, () => 9 * 60 + rnd(13 * 60)).sort((a, b) => a - b);
+    for (const t of times) {
+      const lines = new Map();
+      const nLines = 1 + rnd(4);
+      for (let k = 0; k < nLines; k++) { const pid = 1 + rnd(12); lines.set(pid, (lines.get(pid) || 0) + 1 + rnd(3)); }
+      const d = new Date(day); d.setHours(Math.floor(t / 60), t % 60, rnd(60));
+      sale(1 + (rnd(10) < 6 ? 1 : 2), [...lines], null, fmtDate(d));
+    }
+  }
+  // مبيعات النهارده
+  sale(2, [[1, 2], [5, 3]], 50, ago(190));
+  sale(3, [[6, 1], [7, 1], [10, 1]], 150, ago(150));
+  const s3 = sale(2, [[2, 4], [9, 2]], 100, ago(80));
+  sale(2, [[8, 6], [4, 1]], null, ago(35));
+  sale(1, [[11, 2], [12, 1]], 100, ago(12));
 
   // مرتجع واحد كمثال
   const it = db.sale_items.find(x => x.sale_id === s3 && x.product_id === 2);
   it.returned_qty = 1;
   db.returns.push({ id: id('returns'), sale_id: s3, sale_item_id: it.id, product_id: 2, qty: 1, type: 'refund', amount: 15,
     replacement_product_id: null, replacement_name: null, replacement_price: null, replacement_qty: 0, difference: 0,
-    reason: 'العلبة مفتوحة', user_id: 2, created_at: ago(60) });
+    cost: 11.5, replacement_cost: null, reason: 'العلبة مفتوحة', user_id: 2, created_at: ago(60) });
+
+  // مصروفات تجريبية
+  const dAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return fmtDate(d).slice(0, 10); };
+  const m3 = new Date(); m3.setMonth(m3.getMonth() - 3, 1);
+  db.fixed_expenses.push(
+    { id: id('fixed_expenses'), name: 'إيجار المحل', amount: 4500, start_date: fmtDate(m3).slice(0, 10), end_date: null, notes: 'بيتدفع أول كل شهر', created_at: ago(60 * 24 * 90) },
+    { id: id('fixed_expenses'), name: 'مرتب الكاشير', amount: 4000, start_date: fmtDate(m3).slice(0, 10), end_date: null, notes: '', created_at: ago(60 * 24 * 90) },
+  );
+  for (const [cat, desc, amount, off] of [
+    ['كهرباء', 'فاتورة الشهر اللي فات', 410, 40], ['مياه', '', 85, 39], ['نقل ومواصلات', 'نقل بضاعة من المخزن', 150, 30],
+    ['كهرباء', 'فاتورة الشهر', 380, 12], ['مياه', '', 95, 12], ['صيانة', 'تصليح تلاجة العرض', 250, 5],
+    ['نقل ومواصلات', 'نقل بضاعة', 120, 2], ['أدوات ومستلزمات', 'أكياس وورق إيصالات', 60, 0],
+  ]) db.expenses.push({ id: id('expenses'), category: cat, description: desc, amount, expense_date: dAgo(off), user_id: 1, created_at: ago(off * 60 * 24) });
 
   // جلسة وهمية على جهاز تاني عشان شاشة "مين شغال"
   db.sessions.push({ id: id('sessions'), user_id: 2, ip: 'كاشير 2 — 192.168.1.35', created_at: ago(50), last_seen: ago(1), demo: true });
@@ -866,7 +992,8 @@ function parseProduct(body, selfId) {
   if (barcode && DB.products.some(p => p.id !== selfId && p.barcode && lc(p.barcode) === lc(barcode)))
     throw new ApiErr(400, 'هذا الكود مستخدم لمنتج آخر');
   if (typeof body.image === 'string' && body.image && !/^data:image\//.test(body.image)) throw new ApiErr(400, 'صيغة الصورة غير مدعومة');
-  return { name, price, stock, barcode };
+  const cost = body.cost == null || body.cost === '' ? null : toMoney(body.cost, 'سعر الشراء');
+  return { name, price, stock, barcode, cost };
 }
 on('POST', '/api/products', 'admin', ({ body }) => {
   const f = parseProduct(body, 0);
@@ -934,7 +1061,7 @@ on('DELETE', '/api/users/(\\d+)', 'admin', ({ user }, uid) => {
   if (!u) throw new ApiErr(404, 'المستخدم غير موجود');
   if (u.role === 'admin' && u.active && otherAdmins(u.id) === 0) throw new ApiErr(400, 'لا يمكن حذف آخر مدير في النظام');
   DB.sessions = DB.sessions.filter(s => s.user_id !== u.id);
-  if (DB.sales.some(s => s.user_id === u.id) || DB.returns.some(r => r.user_id === u.id)) { u.active = 0; return { ok: true, deactivated: true }; }
+  if (DB.sales.some(s => s.user_id === u.id) || DB.returns.some(r => r.user_id === u.id) || DB.expenses.some(e => e.user_id === u.id)) { u.active = 0; return { ok: true, deactivated: true }; }
   DB.users = DB.users.filter(x => x.id !== u.id);
   return { ok: true, deactivated: false };
 });
@@ -976,7 +1103,7 @@ on('POST', '/api/sales', 'user', ({ body, user }) => {
   const sid = nextId('sales');
   DB.sales.push({ id: sid, user_id: user.id, total, paid, change_due: r2(paid - total), created_at: now() });
   for (const [p, qty] of lines) {
-    DB.sale_items.push({ id: nextId('sale_items'), sale_id: sid, product_id: p.id, name: p.name, barcode: p.barcode, price: p.price, qty, returned_qty: 0 });
+    DB.sale_items.push({ id: nextId('sale_items'), sale_id: sid, product_id: p.id, name: p.name, barcode: p.barcode, price: p.price, cost: p.cost ?? null, qty, returned_qty: 0 });
     p.stock -= qty;
   }
   return { sale: getSale(sid) };
@@ -1049,9 +1176,129 @@ on('POST', '/api/returns', 'user', ({ body, user }) => {
     id: nextId('returns'), sale_id: si.sale_id, sale_item_id: si.id, product_id: si.product_id, qty, type, amount,
     replacement_product_id: rp ? rp.id : null, replacement_name: rp ? rp.name : null, replacement_price: rp ? rp.price : null,
     replacement_qty: repQty, difference: diff, reason, user_id: user.id, created_at: now(),
+    cost: si.cost ?? null, replacement_cost: rp ? (rp.cost ?? null) : null,
   };
   DB.returns.push(r);
   return { return: retOut(r), sale: getSale(si.sale_id) };
+});
+
+/* ---------- المصروفات ---------- */
+function parseExpense(body) {
+  const category = reqStr(body, 'category', 'نوع المصروف', true, 60);
+  const description = reqStr(body, 'description', 'الوصف', false, 300);
+  const amount = toMoney(body.amount, 'المبلغ');
+  if (amount <= 0) throw new ApiErr(400, 'المبلغ لازم يكون أكبر من صفر');
+  const expense_date = checkDate(String(body.expense_date || ''), 'التاريخ');
+  return { category, description, amount, expense_date };
+}
+on('GET', '/api/expenses', 'admin', ({ q }) => {
+  const t = now().slice(0, 10);
+  const from = checkDate(q.get('from') || t, 'تاريخ البداية'), to = checkDate(q.get('to') || t, 'تاريخ النهاية');
+  const items = DB.expenses.filter(e => e.expense_date >= from && e.expense_date <= to)
+    .sort((a, b) => b.expense_date.localeCompare(a.expense_date) || b.id - a.id)
+    .map(e => { const u = userById(e.user_id); return { ...e, user_name: u?.full_name, username: u?.username }; });
+  return { expenses: items, total: r2(items.reduce((a, e) => a + e.amount, 0)), categories: [...new Set(DB.expenses.map(e => e.category))].sort() };
+});
+on('POST', '/api/expenses', 'admin', ({ body, user }) => {
+  const e = { id: nextId('expenses'), ...parseExpense(body), user_id: user.id, created_at: now() };
+  DB.expenses.push(e);
+  return { expense: e };
+});
+on('PUT', '/api/expenses/(\\d+)', 'admin', ({ body }, eid) => {
+  const e = DB.expenses.find(x => x.id === +eid);
+  if (!e) throw new ApiErr(404, 'المصروف غير موجود');
+  Object.assign(e, parseExpense(body));
+  return { ok: true };
+});
+on('DELETE', '/api/expenses/(\\d+)', 'admin', (_, eid) => { DB.expenses = DB.expenses.filter(x => x.id !== +eid); return { ok: true }; });
+
+function parseFixed(body) {
+  const name = reqStr(body, 'name', 'اسم المصروف', true, 80);
+  const amount = toMoney(body.amount, 'المبلغ الشهري');
+  if (amount <= 0) throw new ApiErr(400, 'المبلغ الشهري لازم يكون أكبر من صفر');
+  const start_date = checkDate(String(body.start_date || ''), 'تاريخ البداية');
+  let end_date = String(body.end_date || '').trim() || null;
+  if (end_date) {
+    checkDate(end_date, 'تاريخ الانتهاء');
+    if (end_date < start_date) throw new ApiErr(400, 'تاريخ الانتهاء لازم يكون بعد تاريخ البداية');
+  }
+  return { name, amount, start_date, end_date, notes: reqStr(body, 'notes', 'ملاحظات', false, 300) };
+}
+on('GET', '/api/fixed-expenses', 'admin', () => ({
+  fixed: [...DB.fixed_expenses].sort((a, b) => (!!a.end_date - !!b.end_date) || a.name.localeCompare(b.name, 'ar')),
+}));
+on('POST', '/api/fixed-expenses', 'admin', ({ body }) => { DB.fixed_expenses.push({ id: nextId('fixed_expenses'), ...parseFixed(body), created_at: now() }); return { ok: true }; });
+on('PUT', '/api/fixed-expenses/(\\d+)', 'admin', ({ body }, fid) => {
+  const f = DB.fixed_expenses.find(x => x.id === +fid);
+  if (!f) throw new ApiErr(404, 'المصروف غير موجود');
+  Object.assign(f, parseFixed(body));
+  return { ok: true };
+});
+on('DELETE', '/api/fixed-expenses/(\\d+)', 'admin', (_, fid) => { DB.fixed_expenses = DB.fixed_expenses.filter(x => x.id !== +fid); return { ok: true }; });
+
+/* ---------- تقرير الأرباح ---------- */
+on('GET', '/api/profit', 'admin', ({ q }) => {
+  const t = now().slice(0, 10);
+  const from = checkDate(q.get('from') || t, 'تاريخ البداية'), to = checkDate(q.get('to') || t, 'تاريخ النهاية');
+  if (to < from) throw new ApiErr(400, 'تاريخ النهاية لازم يكون بعد تاريخ البداية');
+  const toD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const days = [];
+  for (let d = toD(from); d <= toD(to); d.setDate(d.getDate() + 1)) days.push(fmtDate(d).slice(0, 10));
+  if (days.length > 367) throw new ApiErr(400, 'أقصى مدة للتقرير سنة واحدة');
+  const per = Object.fromEntries(days.map(d => [d, { date: d, sales: 0, refunds: 0, exchange_diff: 0, cogs: 0, variable: 0, fixed: 0 }]));
+  let missing = 0, salesCount = 0;
+  const saleDay = new Map();
+  for (const s of DB.sales) {
+    const d = s.created_at.slice(0, 10);
+    if (!per[d]) continue;
+    per[d].sales += s.total; salesCount++; saleDay.set(s.id, d);
+  }
+  for (const i of DB.sale_items) {
+    const d = saleDay.get(i.sale_id);
+    if (!d) continue;
+    if (i.cost == null) missing += i.qty; else per[d].cogs += i.cost * i.qty;
+  }
+  for (const r of DB.returns) {
+    const row = per[r.created_at.slice(0, 10)];
+    if (!row) continue;
+    if (r.type === 'refund') row.refunds += r.amount;
+    else { row.exchange_diff += r.difference; row.cogs += (r.replacement_cost || 0) * r.replacement_qty; }
+    row.cogs -= (r.cost || 0) * r.qty;
+  }
+  const byCat = new Map();
+  for (const e of DB.expenses) {
+    if (!per[e.expense_date]) continue;
+    per[e.expense_date].variable += e.amount;
+    byCat.set(e.category, (byCat.get(e.category) || 0) + e.amount);
+  }
+  const fixedItems = [];
+  for (const f of DB.fixed_expenses) {
+    let share = 0;
+    for (const d of days) {
+      if (d < f.start_date || (f.end_date && d > f.end_date)) continue;
+      const dd = toD(d);
+      const s = f.amount / new Date(dd.getFullYear(), dd.getMonth() + 1, 0).getDate();
+      per[d].fixed += s; share += s;
+    }
+    if (share > 0) fixedItems.push({ name: f.name, monthly: f.amount, share: r2(share) });
+  }
+  const rows = days.map(d => {
+    const r = per[d];
+    r.net_revenue = r.sales - r.refunds + r.exchange_diff;
+    r.profit = r.net_revenue - r.cogs - r.variable - r.fixed;
+    return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === 'number' ? r2(v) : v]));
+  });
+  const tot = k => r2(days.reduce((a, d) => a + per[d][k], 0));
+  const nr = tot('net_revenue'), cogs = tot('cogs'), fx = tot('fixed'), vr = tot('variable');
+  return {
+    from, to, days: rows, fixed_items: fixedItems,
+    variable_by_category: [...byCat].map(([category, amount]) => ({ category, amount: r2(amount) })).sort((a, b) => b.amount - a.amount),
+    summary: {
+      sales_count: salesCount, sales: tot('sales'), refunds: tot('refunds'), exchange_diff: tot('exchange_diff'),
+      net_revenue: nr, cogs, gross_profit: r2(nr - cogs), fixed: fx, variable: vr, expenses: r2(fx + vr),
+      net_profit: r2(nr - cogs - fx - vr), missing_cost_qty: missing,
+    },
+  };
 });
 
 function handle(method, url, body) {
@@ -1210,13 +1457,15 @@ async function loadSettings() {
 }
 
 /* ---------- التنقل ---------- */
-const ADMIN_VIEWS = ['products', 'users', 'sales', 'store'];
+const ADMIN_VIEWS = ['products', 'users', 'sales', 'expenses', 'profit', 'store'];
 const loaders = {
   pos: () => { renderGrid(); renderCart(); focusScanner(); },
   returns: renderReturnHint,
   products: loadAdminProducts,
   users: loadUsers,
   sales: loadSales,
+  expenses: loadExpenses,
+  profit: loadProfit,
   store: renderSettings,
 };
 function showView(v) {
@@ -1619,9 +1868,11 @@ function renderAdminProducts() {
       <td><b>${esc(p.name)}</b></td>
       <td>${p.barcode ? `<span class="mono">${esc(p.barcode)}</span>` : '<span class="muted">—</span>'}</td>
       <td>${money(p.price)}</td>
+      <td>${p.cost != null ? money(p.cost) : '<span class="badge orange">مش متسجل</span>'}</td>
+      <td>${p.cost != null ? `<span class="${p.price - p.cost >= 0 ? 'pos-num' : 'neg-num'}">${money(p.price - p.cost)}</span>` : '<span class="muted">—</span>'}</td>
       <td class="${p.stock <= 5 ? 'low-stock' : ''}">${p.stock}${p.stock <= 5 ? ' <span class="badge red">قليل</span>' : ''}</td>
       <td class="actions"><button class="btn ghost small" data-edit="${p.id}">تعديل</button><button class="btn danger small" data-del="${p.id}">حذف</button></td>
-    </tr>`).join('') || `<tr><td colspan="6" class="empty">مفيش منتجات</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="8" class="empty">مفيش منتجات</td></tr>`;
 }
 $('#prod-search').addEventListener('input', renderAdminProducts);
 $('#add-product').addEventListener('click', () => openProductForm());
@@ -1667,9 +1918,10 @@ function openProductForm(p = null) {
         <button type="button" class="btn ghost small" id="gen-code">توليد كود</button></span>
       </label>
       <div class="row2">
-        <label>السعر<input id="pf-price" type="number" min="0" step="0.01" inputmode="decimal" required value="${p ? p.price : ''}"></label>
-        <label>الكمية في المخزن<input id="pf-stock" type="number" min="0" step="1" inputmode="numeric" required value="${p ? p.stock : 0}"></label>
+        <label>سعر البيع<input id="pf-price" type="number" min="0" step="0.01" inputmode="decimal" required value="${p ? p.price : ''}"></label>
+        <label>سعر الشراء (التكلفة)<input id="pf-cost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="عشان حساب المكسب" value="${p?.cost ?? ''}"></label>
       </div>
+      <label>الكمية في المخزن<input id="pf-stock" type="number" min="0" step="1" inputmode="numeric" required value="${p ? p.stock : 0}"></label>
       <div class="inline">
         <img id="img-prev" class="img-preview" src="${esc(p?.image_url || '')}" alt="" ${p?.image_url ? '' : 'hidden'}>
         <div class="form">
@@ -1698,7 +1950,7 @@ function openProductForm(p = null) {
     });
     form.addEventListener('submit', async e => {
       e.preventDefault();
-      const body = { name: $('#pf-name', card).value, barcode: $('#pf-barcode', card).value, price: $('#pf-price', card).value, stock: $('#pf-stock', card).value };
+      const body = { name: $('#pf-name', card).value, barcode: $('#pf-barcode', card).value, price: $('#pf-price', card).value, cost: $('#pf-cost', card).value, stock: $('#pf-stock', card).value };
       if (image !== undefined) body.image = image;
       try {
         if (p) await api('PUT', '/api/products/' + p.id, body); else await api('POST', '/api/products', body);
@@ -1805,6 +2057,216 @@ $('#sales-body').addEventListener('click', async e => {
   if (!tr) return;
   try { const { sale } = await api('GET', '/api/sales/' + tr.dataset.sid); showSaleReceipt(sale, true); }
   catch (err) { toast(err.message, 'error'); }
+});
+
+/* ---------- التواريخ (الأسبوع بيبدأ يوم السبت) ---------- */
+const isoDate = d => fmtDate(d).slice(0, 10);
+const parseIso = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const weekStart = d => addDays(d, -((d.getDay() + 1) % 7));
+const shortDate = s => parseIso(s).toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' });
+function presetRange(name) {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const sat = weekStart(t);
+  if (name === 'last-week') return [addDays(sat, -7), addDays(sat, -1)];
+  if (name === 'this-month') return [new Date(t.getFullYear(), t.getMonth(), 1), t];
+  if (name === 'last-month') return [new Date(t.getFullYear(), t.getMonth() - 1, 1), new Date(t.getFullYear(), t.getMonth(), 0)];
+  return [sat, t];
+}
+
+/* ---------- المصروفات ---------- */
+const EXP_CATS = ['كهرباء', 'مياه', 'غاز', 'إنترنت وتليفون', 'صيانة', 'نقل ومواصلات', 'نظافة', 'أدوات ومستلزمات', 'ضرايب ورسوم', 'أخرى'];
+let fixedCache = [], expCache = [], expCategories = [];
+async function loadExpenses() {
+  if (!$('#exp-from').value) { const [a, b] = presetRange('this-month'); $('#exp-from').value = isoDate(a); $('#exp-to').value = isoDate(b); }
+  const [{ fixed }, ex] = await Promise.all([api('GET', '/api/fixed-expenses'), api('GET', `/api/expenses?from=${$('#exp-from').value}&to=${$('#exp-to').value}`)]);
+  fixedCache = fixed; expCache = ex.expenses; expCategories = ex.categories;
+  const today = todayStr();
+  $('#fixed-body').innerHTML = fixed.map(f => {
+    const status = !f.end_date ? '<span class="badge green">شغال</span>'
+      : f.end_date < today ? `<span class="badge">اتوقف ${esc(f.end_date)}</span>` : `<span class="badge orange">لحد ${esc(f.end_date)}</span>`;
+    return `<tr>
+      <td><b>${esc(f.name)}</b>${f.notes ? `<div class="muted small">${esc(f.notes)}</div>` : ''}</td>
+      <td><b>${money(f.amount)}</b></td><td class="muted">≈ ${money(f.amount * 7 / 30)}</td>
+      <td>${esc(f.start_date)}</td><td>${status}</td>
+      <td class="actions"><button class="btn ghost small" data-fedit="${f.id}">تعديل</button>${f.end_date ? '' : `<button class="btn ghost small" data-fstop="${f.id}">إيقاف</button>`}<button class="btn danger small" data-fdel="${f.id}">حذف</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="6" class="empty">مفيش مصروفات ثابتة. ضيف الإيجار أو المرتبات من زرار "+ مصروف شهري".</td></tr>`;
+  $('#exp-body').innerHTML = expCache.map(e => `<tr>
+      <td>${esc(e.expense_date)}</td><td><span class="badge blue">${esc(e.category)}</span></td><td>${esc(e.description || '')}</td>
+      <td><b>${money(e.amount)}</b></td><td class="muted">${esc(e.user_name || e.username || '')}</td>
+      <td class="actions"><button class="btn ghost small" data-eedit="${e.id}">تعديل</button><button class="btn danger small" data-edel="${e.id}">حذف</button></td>
+    </tr>`).join('') || `<tr><td colspan="6" class="empty">مفيش مصروفات في الفترة دي</td></tr>`;
+  $('#exp-total').textContent = money(ex.total);
+}
+$('#exp-filter').addEventListener('submit', e => { e.preventDefault(); loadExpenses().catch(err => toast(err.message, 'error')); });
+$('#add-expense').addEventListener('click', () => openExpenseForm());
+$('#add-fixed').addEventListener('click', () => openFixedForm());
+$('#fixed-body').addEventListener('click', async e => {
+  const ed = e.target.closest('[data-fedit]'), st = e.target.closest('[data-fstop]'), del = e.target.closest('[data-fdel]');
+  try {
+    if (ed) openFixedForm(fixedCache.find(f => f.id === Number(ed.dataset.fedit)));
+    if (st) {
+      const f = fixedCache.find(x => x.id === Number(st.dataset.fstop));
+      if (!(await askConfirm(`إيقاف "${f.name}" من النهارده؟ التقارير القديمة مش هتتأثر.`, 'إيقاف', false))) return;
+      await api('PUT', '/api/fixed-expenses/' + f.id, { ...f, end_date: todayStr() });
+      toast('المصروف اتوقف', 'success'); await loadExpenses();
+    }
+    if (del) {
+      const f = fixedCache.find(x => x.id === Number(del.dataset.fdel));
+      if (!(await askConfirm(`حذف "${f.name}" نهائياً؟ هيتشال كمان من التقارير اللي فاتت. لو المصروف خلص بس، استخدم "إيقاف".`, 'حذف'))) return;
+      await api('DELETE', '/api/fixed-expenses/' + f.id);
+      toast('المصروف اتحذف', 'success'); await loadExpenses();
+    }
+  } catch (err) { toast(err.message, 'error'); }
+});
+$('#exp-body').addEventListener('click', async e => {
+  const ed = e.target.closest('[data-eedit]'), del = e.target.closest('[data-edel]');
+  if (ed) openExpenseForm(expCache.find(x => x.id === Number(ed.dataset.eedit)));
+  if (del) {
+    const x = expCache.find(y => y.id === Number(del.dataset.edel));
+    if (!(await askConfirm(`حذف مصروف "${x.category}" بمبلغ ${money(x.amount)}؟`, 'حذف'))) return;
+    try { await api('DELETE', '/api/expenses/' + x.id); toast('المصروف اتحذف', 'success'); await loadExpenses(); }
+    catch (err) { toast(err.message, 'error'); }
+  }
+});
+function openFixedForm(f = null) {
+  openModal(`
+    <h3>${f ? 'تعديل مصروف شهري' : 'مصروف ثابت كل شهر'}</h3>
+    <form id="fform" class="form">
+      <label>اسم المصروف<input id="ff-name" required maxlength="80" list="fixed-suggest" value="${esc(f?.name)}" placeholder="مثلاً: إيجار المحل"></label>
+      <datalist id="fixed-suggest"><option value="إيجار المحل"><option value="مرتبات"><option value="اشتراك إنترنت"><option value="حراسة"><option value="قسط"></datalist>
+      <label>المبلغ في الشهر<input id="ff-amount" type="number" min="0.01" step="0.01" inputmode="decimal" required value="${f?.amount ?? ''}"></label>
+      <div class="row2">
+        <label>بدأ من تاريخ<input id="ff-start" type="date" required value="${esc(f?.start_date || todayStr().slice(0, 8) + '01')}"></label>
+        <label>ينتهي في (اختياري)<input id="ff-end" type="date" value="${esc(f?.end_date || '')}"></label>
+      </div>
+      <label>ملاحظات (اختياري)<input id="ff-notes" maxlength="300" value="${esc(f?.notes)}"></label>
+      <div id="fixed-preview" class="summary"></div>
+      <div class="modal-actions"><button class="btn primary" type="submit">حفظ</button><button class="btn ghost" type="button" data-close>إلغاء</button></div>
+    </form>`, card => {
+    const amt = $('#ff-amount', card);
+    const prev = () => { const a = Number(amt.value) || 0; $('#fixed-preview', card).textContent = a ? `يعني تقريباً ${money(a / 30)} في اليوم، و ${money(a * 7 / 30)} في الأسبوع` : 'اكتب المبلغ الشهري'; };
+    amt.addEventListener('input', prev); prev();
+    $('#fform', card).addEventListener('submit', async e => {
+      e.preventDefault();
+      const body = { name: $('#ff-name', card).value, amount: amt.value, start_date: $('#ff-start', card).value, end_date: $('#ff-end', card).value, notes: $('#ff-notes', card).value };
+      try {
+        if (f) await api('PUT', '/api/fixed-expenses/' + f.id, body); else await api('POST', '/api/fixed-expenses', body);
+        closeModal(); toast('المصروف اتحفظ', 'success'); await loadExpenses();
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  });
+}
+function openExpenseForm(x = null) {
+  const cats = [...new Set([...EXP_CATS, ...expCategories])];
+  openModal(`
+    <h3>${x ? 'تعديل مصروف' : 'مصروف جديد'}</h3>
+    <form id="eform" class="form">
+      <div class="row2">
+        <label>التاريخ<input id="ef-date" type="date" required value="${esc(x?.expense_date || todayStr())}"></label>
+        <label>المبلغ<input id="ef-amount" type="number" min="0.01" step="0.01" inputmode="decimal" required value="${x?.amount ?? ''}"></label>
+      </div>
+      <label>النوع (اختار أو اكتب نوع جديد)<input id="ef-cat" required maxlength="60" list="exp-cats" value="${esc(x?.category)}" autocomplete="off"></label>
+      <datalist id="exp-cats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+      <label>الوصف (اختياري)<input id="ef-desc" maxlength="300" value="${esc(x?.description)}" placeholder="مثلاً: فاتورة كهرباء شهر 10"></label>
+      <div class="modal-actions"><button class="btn primary" type="submit">حفظ</button><button class="btn ghost" type="button" data-close>إلغاء</button></div>
+    </form>`, card => {
+    $('#eform', card).addEventListener('submit', async e => {
+      e.preventDefault();
+      const body = { expense_date: $('#ef-date', card).value, amount: $('#ef-amount', card).value, category: $('#ef-cat', card).value, description: $('#ef-desc', card).value };
+      try {
+        if (x) await api('PUT', '/api/expenses/' + x.id, body); else await api('POST', '/api/expenses', body);
+        closeModal(); toast('المصروف اتسجل', 'success'); await loadExpenses();
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  });
+}
+
+/* ---------- تقرير الأرباح ---------- */
+let lastProfit = null;
+function applyPreset(name, load = true) {
+  const [a, b] = presetRange(name);
+  $('#profit-from').value = isoDate(a); $('#profit-to').value = isoDate(b);
+  $$('#profit-presets .chip').forEach(c => c.classList.toggle('active', c.dataset.preset === name));
+  if (load) loadProfit().catch(err => toast(err.message, 'error'));
+}
+$('#profit-presets').addEventListener('click', e => { const c = e.target.closest('[data-preset]'); if (c) applyPreset(c.dataset.preset); });
+$('#profit-filter').addEventListener('submit', e => {
+  e.preventDefault();
+  $$('#profit-presets .chip').forEach(c => c.classList.remove('active'));
+  loadProfit().catch(err => toast(err.message, 'error'));
+});
+async function loadProfit() {
+  if (!$('#profit-from').value) applyPreset('this-week', false);
+  lastProfit = await api('GET', `/api/profit?from=${$('#profit-from').value}&to=${$('#profit-to').value}`);
+  renderProfit(lastProfit);
+}
+const signCls = n => (n >= 0 ? 'pos-num' : 'neg-num');
+function renderProfit(d) {
+  const s = d.summary;
+  $('#profit-cards').innerHTML = `
+    <div class="stat"><div class="k">الفلوس اللي دخلت</div><div class="v">${money(s.net_revenue)}</div><div class="muted small">${s.sales_count} فاتورة</div></div>
+    <div class="stat"><div class="k">تكلفة البضاعة اللي اتباعت</div><div class="v">${money(s.cogs)}</div></div>
+    <div class="stat"><div class="k">المصروفات (ثابتة + متغيرة)</div><div class="v" style="color:var(--warn)">${money(s.expenses)}</div></div>
+    <div class="stat"><div class="k">${s.net_profit >= 0 ? 'صافي الربح' : 'خسارة'}</div><div class="v ${signCls(s.net_profit)}">${money(s.net_profit)}</div></div>`;
+  $('#profit-warning').innerHTML = s.missing_cost_qty > 0
+    ? `<div class="warn-box">فيه ${s.missing_cost_qty} قطعة اتباعت من منتجات مش متسجل لها <b>سعر شراء</b>، فتكلفتها محسوبة صفر والربح هيطلع أعلى من الحقيقي. سجّل سعر الشراء من شاشة المنتجات.</div>` : '';
+  const line = (label, val, cls = '', valCls = '') => `<tr class="${cls}"><td>${label}</td><td class="${valCls}">${val}</td></tr>`;
+  let h = `<h3 style="margin-bottom:8px">كشف الحساب من ${esc(d.from)} إلى ${esc(d.to)}</h3><table class="ledger">`;
+  h += line(`إجمالي المبيعات (${s.sales_count} فاتورة)`, money(s.sales));
+  if (s.refunds) h += line('− مرتجعات (فلوس رجعت للعملاء)', '− ' + money(s.refunds), 'sub');
+  if (s.exchange_diff) h += line('± فروق الاستبدال', money(s.exchange_diff), 'sub');
+  h += line('الفلوس اللي دخلت', money(s.net_revenue), 'subtotal');
+  h += line('− تكلفة البضاعة اللي اتباعت', '− ' + money(s.cogs));
+  h += line('مجمل الربح', money(s.gross_profit), 'subtotal', signCls(s.gross_profit));
+  h += line('− المصروفات الثابتة', '− ' + money(s.fixed));
+  d.fixed_items.forEach(f => { h += line(`${esc(f.name)} <span class="small">(${money(f.monthly)} في الشهر)</span>`, money(f.share), 'sub'); });
+  h += line('− المصروفات المتغيرة', '− ' + money(s.variable));
+  d.variable_by_category.forEach(c => { h += line(esc(c.category), money(c.amount), 'sub'); });
+  h += line(s.net_profit >= 0 ? 'صافي الربح' : 'صافي الخسارة', money(s.net_profit), 'grand', signCls(s.net_profit));
+  $('#profit-ledger').innerHTML = h + '</table>';
+  let groups;
+  if (d.days.length > 14) {
+    const map = new Map();
+    for (const r of d.days) {
+      const key = isoDate(weekStart(parseIso(r.date)));
+      const g = map.get(key) || { from: r.date, to: r.date, sales: 0, refunds: 0, exchange_diff: 0, cogs: 0, variable: 0, fixed: 0, profit: 0 };
+      g.to = r.date;
+      for (const k of ['sales', 'refunds', 'exchange_diff', 'cogs', 'variable', 'fixed', 'profit']) g[k] += r[k];
+      map.set(key, g);
+    }
+    groups = [...map.values()].map(g => ({ ...g, label: `${shortDate(g.from)} ← ${shortDate(g.to)}` }));
+    $('#profit-period-col').textContent = 'الأسبوع';
+    $('#profit-breakdown-title').textContent = 'التفاصيل بالأسبوع';
+  } else {
+    groups = d.days.map(r => ({ ...r, label: shortDate(r.date) }));
+    $('#profit-period-col').textContent = 'اليوم';
+    $('#profit-breakdown-title').textContent = 'التفاصيل باليوم';
+  }
+  $('#profit-body').innerHTML = groups.map(g => `<tr>
+      <td>${esc(g.label)}</td><td>${money(g.sales)}</td>
+      <td>${r2(g.refunds - g.exchange_diff) ? money(g.refunds - g.exchange_diff) : '<span class="muted">—</span>'}</td>
+      <td>${money(g.cogs)}</td><td>${money(g.variable + g.fixed)}</td>
+      <td><b class="${signCls(g.profit)}">${money(g.profit)}</b></td></tr>`).join('');
+}
+$('#profit-print').addEventListener('click', () => {
+  const d = lastProfit;
+  if (!d) return;
+  const s = d.summary;
+  const row = (l, v, big) => `<div class="r-row${big ? ' big' : ''}"><span>${l}</span><span>${v}</span></div>`;
+  showReceipt(`${receiptHeader()}
+    <div class="center"><b>تقرير الأرباح</b></div><div class="center">من ${esc(d.from)} إلى ${esc(d.to)}</div><hr>
+    ${row(`المبيعات (${s.sales_count} فاتورة)`, money(s.sales))}
+    ${s.refunds ? row('مرتجعات', '- ' + money(s.refunds)) : ''}
+    ${s.exchange_diff ? row('فروق استبدال', money(s.exchange_diff)) : ''}
+    ${row('<b>الفلوس اللي دخلت</b>', `<b>${money(s.net_revenue)}</b>`)}
+    ${row('تكلفة البضاعة', '- ' + money(s.cogs))}
+    ${row('<b>مجمل الربح</b>', `<b>${money(s.gross_profit)}</b>`)}<hr>
+    ${d.fixed_items.map(f => row(esc(f.name), '- ' + money(f.share))).join('')}
+    ${d.variable_by_category.map(c => row(esc(c.category), '- ' + money(c.amount))).join('')}
+    ${row('<b>إجمالي المصروفات</b>', `<b>- ${money(s.expenses)}</b>`)}<hr>
+    ${row(s.net_profit >= 0 ? 'صافي الربح' : 'صافي الخسارة', money(s.net_profit), true)}`, 'RPT-' + d.from.replace(/-/g, '') + '-' + d.to.replace(/-/g, ''));
 });
 
 /* ---------- الإعدادات ---------- */
