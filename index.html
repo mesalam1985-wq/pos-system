@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>[hidden]{display:none!important} img{max-width:100%} body{margin:0}</style>
 </head>
-<body><title>كاشير POS التجريبي</title>
+<body>
+<title>كاشير POS التجريبي</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
@@ -700,6 +701,7 @@ tr.hl { background: var(--warn-soft); }
           <label>من <input id="exp-from" type="date"></label>
           <label>إلى <input id="exp-to" type="date"></label>
           <button class="btn ghost">عرض</button>
+          <button type="button" id="exp-print" class="btn ghost">طباعة الكشف</button>
           <button type="button" id="add-expense" class="btn primary">+ مصروف جديد</button>
         </form>
         <div class="tbl">
@@ -2095,7 +2097,7 @@ async function loadExpenses() {
   $('#exp-body').innerHTML = expCache.map(e => `<tr>
       <td>${esc(e.expense_date)}</td><td><span class="badge blue">${esc(e.category)}</span></td><td>${esc(e.description || '')}</td>
       <td><b>${money(e.amount)}</b></td><td class="muted">${esc(e.user_name || e.username || '')}</td>
-      <td class="actions"><button class="btn ghost small" data-eedit="${e.id}">تعديل</button><button class="btn danger small" data-edel="${e.id}">حذف</button></td>
+      <td class="actions"><button class="btn ghost small" data-eprint="${e.id}">طباعة سند</button><button class="btn ghost small" data-eedit="${e.id}">تعديل</button><button class="btn danger small" data-edel="${e.id}">حذف</button></td>
     </tr>`).join('') || `<tr><td colspan="6" class="empty">مفيش مصروفات في الفترة دي</td></tr>`;
   $('#exp-total').textContent = money(ex.total);
 }
@@ -2120,7 +2122,39 @@ $('#fixed-body').addEventListener('click', async e => {
     }
   } catch (err) { toast(err.message, 'error'); }
 });
+function printExpenseVoucher(x) {
+  showReceipt(`${receiptHeader()}
+    <div class="center"><b>سند صرف</b></div>
+    <div class="r-row"><span>رقم السند</span><b>EXP-${String(x.id).padStart(5, '0')}</b></div>
+    <div class="r-row"><span>التاريخ</span><span>${esc(x.expense_date)}</span></div><hr>
+    <div class="r-row"><span>النوع</span><b>${esc(x.category)}</b></div>
+    ${x.description ? `<div class="r-row"><span>البيان</span><span>${esc(x.description)}</span></div>` : ''}
+    <div class="r-row big"><span>المبلغ</span><span>${money(x.amount)}</span></div><hr>
+    <div class="r-row"><span>سجّله</span><span>${esc(x.user_name || x.username || '')}</span></div>
+    <br><div>توقيع المستلم: ....................</div>`, 'EXP-' + String(x.id).padStart(5, '0'));
+}
+$('#exp-print').addEventListener('click', () => {
+  if (!expCache.length && !fixedCache.length) { toast('مفيش مصروفات للطباعة', 'error'); return; }
+  const from = $('#exp-from').value, to = $('#exp-to').value;
+  const byCat = new Map();
+  expCache.forEach(x => byCat.set(x.category, (byCat.get(x.category) || 0) + x.amount));
+  const total = expCache.reduce((a, x) => a + x.amount, 0);
+  const activeFixed = fixedCache.filter(f => !f.end_date || f.end_date >= from);
+  const row = (l, v, big) => `<div class="r-row${big ? ' big' : ''}"><span>${l}</span><span>${v}</span></div>`;
+  showReceipt(`${receiptHeader()}
+    <div class="center"><b>كشف المصروفات</b></div>
+    <div class="center">من ${esc(from)} إلى ${esc(to)}</div><hr>
+    ${expCache.length ? `<table><thead><tr><th>التاريخ</th><th>البيان</th><th>المبلغ</th></tr></thead><tbody>
+      ${[...expCache].reverse().map(x => `<tr><td>${esc(x.expense_date.slice(5))}</td><td>${esc(x.category)}${x.description ? ` - ${esc(x.description)}` : ''}</td><td>${fmt(x.amount)}</td></tr>`).join('')}
+    </tbody></table><hr><div><b>حسب النوع:</b></div>
+    ${[...byCat].sort((a, b) => b[1] - a[1]).map(([c, v]) => row(esc(c), money(v))).join('')}<hr>` : '<div class="center">مفيش مصروفات متغيرة في الفترة دي</div><hr>'}
+    ${row('إجمالي المصروفات المتغيرة', money(total), true)}
+    ${activeFixed.length ? `<hr><div><b>المصروفات الثابتة (شهرياً):</b></div>${activeFixed.map(f => row(esc(f.name), money(f.amount))).join('')}` : ''}`,
+    'EXL-' + from.replace(/-/g, '') + '-' + to.replace(/-/g, ''));
+});
 $('#exp-body').addEventListener('click', async e => {
+  const pr = e.target.closest('[data-eprint]');
+  if (pr) { printExpenseVoucher(expCache.find(x => x.id === Number(pr.dataset.eprint))); return; }
   const ed = e.target.closest('[data-eedit]'), del = e.target.closest('[data-edel]');
   if (ed) openExpenseForm(expCache.find(x => x.id === Number(ed.dataset.eedit)));
   if (del) {
